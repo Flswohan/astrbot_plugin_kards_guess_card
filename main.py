@@ -55,7 +55,7 @@ class GameRoom:
         self.scores[user_id] = self.scores.get(user_id, 0) + points
 
 
-@register("kards_guess_card", "Kards卡牌剪影猜猜猜", "1.0.0")
+@register(name="kards_guess_card", desc="Kards卡牌剪影猜猜猜", version="1.0.0")
 class KardsGuessCardPlugin(Star):
     """Kards 卡牌剪影猜猜猜插件（Star架构）"""
 
