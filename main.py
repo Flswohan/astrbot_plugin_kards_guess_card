@@ -9,20 +9,16 @@ from datetime import datetime
 from PIL import Image
 import aiohttp
 
-# ============ 根据示例插件导入 ============
+# ============ 从示例插件导入 ============
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 # ==========================================
 
-# 如果还需要消息类型，可以导入（通常 Plain 和 Image 在 types 中）
-# 但很多 Star 插件通过 context.send_message 直接发送字符串或图片路径
-# 这里我们导入 Plain 和 Image 以备使用（如果可用）
+# 尝试导入消息类型（可选）
 try:
     from astrbot.api.types import Plain, Image as MBImage
 except ImportError:
-    # 如果无法导入，定义占位符（实际不会用到）
-    Plain = str
     MBImage = None
 
 
@@ -59,7 +55,7 @@ class GameRoom:
         self.scores[user_id] = self.scores.get(user_id, 0) + points
 
 
-@register("kards_guess_card", "Kards卡牌剪影猜猜猜")
+@register("kards_guess_card", "Kards卡牌剪影猜猜猜", "1.0.0")
 class KardsGuessCardPlugin(Star):
     """Kards 卡牌剪影猜猜猜插件（Star架构）"""
 
@@ -80,7 +76,9 @@ class KardsGuessCardPlugin(Star):
             self.card_pool = []
 
         # 加载图片文件
-        image_dir = self.config.get("card_image_dir", "./cards_images/") if hasattr(self, 'config') else "./cards_images/"
+        image_dir = "./cards_images/"  # 默认相对路径
+        if hasattr(self, 'config') and self.config:
+            image_dir = self.config.get("card_image_dir", "./cards_images/")
         if not os.path.isabs(image_dir):
             image_dir = os.path.join(os.path.dirname(__file__), image_dir)
         if not os.path.exists(image_dir):
@@ -95,14 +93,22 @@ class KardsGuessCardPlugin(Star):
                         logger.debug(f"图片 {filename} 对应的卡牌不在列表中，忽略")
             logger.info(f"已加载 {len(self.card_image_map)} 张卡牌图片")
 
-        # 配置参数（如果存在配置对象）
-        self.crop_top = self.config.get("crop_top_ratio", 0.22) if hasattr(self, 'config') else 0.22
-        self.crop_bottom = self.config.get("crop_bottom_ratio", 0.30) if hasattr(self, 'config') else 0.30
-        self.crop_left = self.config.get("crop_left_ratio", 0.08) if hasattr(self, 'config') else 0.08
-        self.crop_right = self.config.get("crop_right_ratio", 0.08) if hasattr(self, 'config') else 0.08
-        self.guess_timeout = self.config.get("guess_timeout", 60) if hasattr(self, 'config') else 60
-        self.rounds_per_day = self.config.get("rounds_per_day", 20) if hasattr(self, 'config') else 20
-        self.points_correct = self.config.get("points_correct", 10) if hasattr(self, 'config') else 10
+        # 配置参数
+        self.crop_top = 0.22
+        self.crop_bottom = 0.30
+        self.crop_left = 0.08
+        self.crop_right = 0.08
+        self.guess_timeout = 60
+        self.rounds_per_day = 20
+        self.points_correct = 10
+        if hasattr(self, 'config') and self.config:
+            self.crop_top = self.config.get("crop_top_ratio", 0.22)
+            self.crop_bottom = self.config.get("crop_bottom_ratio", 0.30)
+            self.crop_left = self.config.get("crop_left_ratio", 0.08)
+            self.crop_right = self.config.get("crop_right_ratio", 0.08)
+            self.guess_timeout = self.config.get("guess_timeout", 60)
+            self.rounds_per_day = self.config.get("rounds_per_day", 20)
+            self.points_correct = self.config.get("points_correct", 10)
 
     def _get_room(self, group_id: str) -> GameRoom:
         if group_id not in self.rooms:
@@ -185,16 +191,18 @@ class KardsGuessCardPlugin(Star):
                 f"⏱️ 限时 {self.guess_timeout} 秒\n"
                 f"💡 提示：卡牌名称字数 = {len(card_name)}"
             )
-            # 发送图片（如果支持图片发送）
+            # 发送图片
             if MBImage is not None:
-                # 使用 MBImage.from_file_path 发送图片
                 image_msg = MBImage.from_file_path(cropped_path)
                 await context.send_message(image_msg)
             else:
-                # 如果无法发送图片，则发送图片路径（可能不可用）
-                logger.warning("当前API不支持图片发送，尝试以文件方式发送")
-                # 某些版本可能支持发送文件，这里简单处理
-                await context.send_message(f"[图片已生成，请查看文件: {cropped_path}]")
+                # 尝试使用 context.send_file（如果支持）
+                try:
+                    with open(cropped_path, 'rb') as f:
+                        await context.send_file(f, filename=f"{card_name}.jpg")
+                except Exception as e:
+                    logger.warning(f"发送文件失败: {e}")
+                    await context.send_message(f"[图片已生成，请查看文件: {cropped_path}]")
         except Exception as e:
             logger.error(f"发送图片失败: {e}")
             await context.send_message(f"❌ 发送图片失败: {e}")
