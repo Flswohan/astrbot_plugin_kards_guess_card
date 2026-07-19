@@ -55,9 +55,7 @@ class GameRoom:
         self.scores[user_id] = self.scores.get(user_id, 0) + points
 
 
-# ========== 修正注册装饰器，补齐所有参数 ==========
 @register(name="kards_guess_card", author="YourName", desc="Kards卡牌剪影猜猜猜", version="1.0.0")
-# =================================================
 class KardsGuessCardPlugin(Star):
     """Kards 卡牌剪影猜猜猜插件（Star架构）"""
 
@@ -361,8 +359,8 @@ class KardsGuessCardPlugin(Star):
         else:
             await context.send_message("❌ 没有加载到卡牌列表")
 
-    # 处理普通文本消息（猜牌）
-    @filter.on_message()
+    # 处理普通文本消息（猜牌） - 修正装饰器名称
+    @filter.message()
     async def on_guess_text(self, event: AstrMessageEvent, context: Context):
         """处理非命令文本（猜牌）"""
         group_id = event.get_group_id()
@@ -374,7 +372,7 @@ class KardsGuessCardPlugin(Star):
         text = event.get_message_str().strip()
         if not text:
             return
-        # 忽略以 / 开头的命令
+        # 忽略以 / 开头的命令（但通常 message 不会匹配以 / 开头的命令，因为 command 会优先）
         if text.startswith("/"):
             return
         if len(text) > 30:
