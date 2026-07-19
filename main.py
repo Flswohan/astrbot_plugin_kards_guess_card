@@ -11,12 +11,12 @@ from io import BytesIO
 from PIL import Image
 import aiohttp
 
-# ============ 修正导入（关键）============
+# ============ 方案一导入（核心修改）============
 from astrbot.api import event, types
 from astrbot.api.event import on_message
 from astrbot.api.types import Plain, Image as MBImage
 from astrbot.core import AstrBotPlugin, Context, MessageEvent, PluginMetadata
-# ========================================
+# ==============================================
 
 logger = logging.getLogger(__name__)
 
