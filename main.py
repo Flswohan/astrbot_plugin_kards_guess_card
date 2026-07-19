@@ -10,14 +10,15 @@ from io import BytesIO
 
 from PIL import Image
 import aiohttp
-# 核心导入（根据实际调整）
+
+# ============ 修正导入（关键）============
 from astrbot.api import Context, MessageEvent, PluginMetadata
 from astrbot.api.event import on_message
 from astrbot.api.types import MessageChain, Plain, Image as MBImage
-from astrbot.core.plugin import AstrBotPlugin   # ← 关键修改
+from astrbot.core.plugin import AstrBotPlugin   # ← 从 core.plugin 导入
+# ========================================
 
 logger = logging.getLogger(__name__)
-# ... 其余代码保持不变
 
 # ==================== 游戏状态管理 ====================
 
@@ -26,17 +27,16 @@ class GameRoom:
     def __init__(self, group_id: str):
         self.group_id = group_id
         self.is_playing = False
-        self.current_card: Optional[str] = None          # 当前卡牌名称
-        self.current_image_path: Optional[str] = None    # 裁剪后的图片临时文件路径
-        self.guessed_users: Set[str] = set()             # 已猜过的用户ID
+        self.current_card: Optional[str] = None
+        self.current_image_path: Optional[str] = None
+        self.guessed_users: Set[str] = set()
         self.round_start_time: Optional[datetime] = None
         self.timer_task: Optional[asyncio.Task] = None
-        self.scores: Dict[str, int] = {}                 # 用户ID -> 得分
+        self.scores: Dict[str, int] = {}
         self.daily_rounds: int = 0
         self.last_round_date: Optional[str] = None
 
     def reset(self):
-        """重置房间状态（保留分数）"""
         self.is_playing = False
         self.current_card = None
         self.guessed_users = set()
@@ -44,7 +44,6 @@ class GameRoom:
         if self.timer_task:
             self.timer_task.cancel()
             self.timer_task = None
-        # 删除临时文件
         if self.current_image_path and os.path.exists(self.current_image_path):
             try:
                 os.remove(self.current_image_path)
@@ -60,10 +59,9 @@ class KardsGuessCardPlugin(AstrBotPlugin):
     """Kards 卡牌剪影猜猜猜插件"""
 
     async def initialize(self):
-        """初始化：加载卡牌列表和图片文件"""
         self.rooms: Dict[str, GameRoom] = {}
         self.card_pool: List[str] = []
-        self.card_image_map: Dict[str, str] = {}  # 卡牌名 -> 图片文件路径
+        self.card_image_map: Dict[str, str] = {}
 
         # 加载卡牌列表
         list_path = os.path.join(os.path.dirname(__file__), "cards_data", "kards_list.json")
@@ -84,15 +82,13 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         else:
             for filename in os.listdir(image_dir):
                 if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
-                    name = os.path.splitext(filename)[0]  # 文件名即为卡牌名
+                    name = os.path.splitext(filename)[0]
                     if name in self.card_pool:
                         self.card_image_map[name] = os.path.join(image_dir, filename)
                     else:
-                        # 如果文件名不在列表中，可选择性添加
                         logger.debug(f"图片 {filename} 对应的卡牌不在列表中，忽略")
             logger.info(f"已加载 {len(self.card_image_map)} 张卡牌图片")
 
-        # 配置参数
         self.crop_top = self.config.get("crop_top_ratio", 0.22)
         self.crop_bottom = self.config.get("crop_bottom_ratio", 0.30)
         self.crop_left = self.config.get("crop_left_ratio", 0.08)
@@ -100,8 +96,6 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         self.guess_timeout = self.config.get("guess_timeout", 60)
         self.rounds_per_day = self.config.get("rounds_per_day", 20)
         self.points_correct = self.config.get("points_correct", 10)
-
-    # ---------- 工具方法 ----------
 
     def _get_room(self, group_id: str) -> GameRoom:
         if group_id not in self.rooms:
@@ -119,12 +113,8 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         return room.daily_rounds < self.rounds_per_day
 
     def _crop_card_image(self, image_path: str) -> Optional[str]:
-        """
-        裁剪卡牌图片，返回裁剪后的临时文件路径
-        """
         try:
             with Image.open(image_path) as img:
-                # 转换为RGB（处理PNG透明背景）
                 if img.mode == 'RGBA':
                     img = img.convert('RGB')
                 width, height = img.size
@@ -132,13 +122,11 @@ class KardsGuessCardPlugin(AstrBotPlugin):
                 right = int(width * (1 - self.crop_right))
                 top = int(height * self.crop_top)
                 bottom = int(height * (1 - self.crop_bottom))
-                # 确保裁剪区域有效
                 if left >= right or top >= bottom:
                     logger.warning("裁剪区域无效，使用原始图片")
                     cropped = img
                 else:
                     cropped = img.crop((left, top, right, bottom))
-                # 保存到临时文件
                 fd, temp_path = tempfile.mkstemp(suffix=".jpg", prefix="kards_guess_")
                 os.close(fd)
                 cropped.save(temp_path, "JPEG", quality=85)
@@ -148,16 +136,12 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             return None
 
     def _pick_card(self) -> Optional[str]:
-        """从可用卡牌中随机选择一张（必须有对应图片）"""
         available = [name for name in self.card_pool if name in self.card_image_map]
         if not available:
             return None
         return random.choice(available)
 
-    # ---------- 游戏流程 ----------
-
     async def _start_round(self, room: GameRoom, group_id: str, context: Context):
-        """开始一轮猜牌"""
         if room.is_playing:
             await context.send_message(Plain("⏳ 当前已有游戏进行中，请等待结束"))
             return
@@ -166,20 +150,17 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             await context.send_message(Plain(f"⚠️ 今日游戏次数已达上限（{self.rounds_per_day}轮），明天再来吧！"))
             return
 
-        # 选卡
         card_name = self._pick_card()
         if not card_name:
             await context.send_message(Plain("❌ 没有可用的卡牌图片，请先添加卡牌图片到 cards_images/ 目录"))
             return
 
-        # 裁剪图片
         img_path = self.card_image_map[card_name]
         cropped_path = self._crop_card_image(img_path)
         if not cropped_path:
             await context.send_message(Plain("❌ 图片裁剪失败，请检查图片格式"))
             return
 
-        # 重置房间
         room.reset()
         room.is_playing = True
         room.current_card = card_name
@@ -189,9 +170,7 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         room.last_round_date = self._get_today()
         room.guessed_users = set()
 
-        # 发送裁剪后的图片
         try:
-            # 先将图片上传并发送（使用MBImage.from_file_path）
             image_msg = MBImage.from_file_path(cropped_path)
             await context.send_message(
                 Plain(f"🔍 **第{room.daily_rounds}轮猜卡牌**\n")
@@ -206,11 +185,9 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             room.reset()
             return
 
-        # 启动猜牌超时计时器
         room.timer_task = asyncio.create_task(self._guess_timeout_handler(room, group_id, context))
 
     async def _guess_timeout_handler(self, room: GameRoom, group_id: str, context: Context):
-        """猜牌超时处理"""
         await asyncio.sleep(self.guess_timeout)
         if room.is_playing:
             await context.send_message(
@@ -221,7 +198,6 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             if room.timer_task:
                 room.timer_task.cancel()
                 room.timer_task = None
-            # 清理临时文件
             if room.current_image_path and os.path.exists(room.current_image_path):
                 try:
                     os.remove(room.current_image_path)
@@ -231,7 +207,6 @@ class KardsGuessCardPlugin(AstrBotPlugin):
 
     async def _handle_guess(self, room: GameRoom, group_id: str, user_id: str,
                             guess: str, context: Context):
-        """处理猜牌"""
         if not room.is_playing:
             await context.send_message(Plain("⚠️ 当前没有进行中的游戏"))
             return
@@ -243,7 +218,6 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         room.guessed_users.add(user_id)
 
         if guess.strip().lower() == room.current_card.lower():
-            # 猜对
             room.add_score(user_id, self.points_correct)
             await context.send_message(
                 Plain(f"🎉 **恭喜 <@{user_id}> 猜对了！**\n")
@@ -255,17 +229,14 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             if room.timer_task:
                 room.timer_task.cancel()
                 room.timer_task = None
-            # 清理临时文件
             if room.current_image_path and os.path.exists(room.current_image_path):
                 try:
                     os.remove(room.current_image_path)
                 except Exception:
                     pass
             room.current_image_path = None
-            # 显示排行榜
             await self._show_leaderboard(room, group_id, context)
         else:
-            # 猜错，给提示
             hint = self._get_hint(room.current_card, len(room.guessed_users))
             await context.send_message(
                 Plain(f"❌ 不对哦，再想想！\n")
@@ -299,8 +270,6 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             msg += Plain(f"{medal} <@{uid}>: {score}分\n")
         await context.send_message(msg)
 
-    # ==================== 消息处理 ====================
-
     @on_message
     async def on_group_message(self, event: MessageEvent, context: Context):
         if not event.group_id:
@@ -310,19 +279,14 @@ class KardsGuessCardPlugin(AstrBotPlugin):
         user_id = str(event.user_id)
         room = self._get_room(group_id)
 
-        # 提取纯文本
         text = ""
         if event.message and event.message.plain:
             text = event.message.plain.strip()
 
-        # ---------- 指令处理 ----------
-
-        # 开始游戏: /猜卡
         if text in ["/猜卡", "/开始猜卡", "猜卡", "开始猜卡"]:
             await self._start_round(room, group_id, context)
             return
 
-        # 结束游戏: /结束猜卡
         if text in ["/结束猜卡", "结束猜卡"]:
             if not room.is_playing:
                 await context.send_message(Plain("⚠️ 当前没有进行中的游戏"))
@@ -340,18 +304,15 @@ class KardsGuessCardPlugin(AstrBotPlugin):
             room.current_image_path = None
             return
 
-        # 排行榜: /排行榜
         if text in ["/排行榜", "排行榜", "排名"]:
             await self._show_leaderboard(room, group_id, context)
             return
 
-        # 我的分数: /我的分数
         if text in ["/我的分数", "我的分数", "分数"]:
             score = room.scores.get(user_id, 0)
             await context.send_message(Plain(f"📊 你的当前得分: {score}分"))
             return
 
-        # 卡牌列表: /卡牌列表
         if text in ["/卡牌列表", "卡牌列表"]:
             if self.card_pool:
                 preview = "、".join(self.card_pool[:20])
@@ -362,14 +323,11 @@ class KardsGuessCardPlugin(AstrBotPlugin):
                 await context.send_message(Plain("❌ 没有加载到卡牌列表"))
             return
 
-        # ---------- 猜牌处理 ----------
         if room.is_playing and text and not text.startswith("/"):
-            # 避免与指令冲突，且只处理长度适中的文本
             if len(text) <= 30:
                 await self._handle_guess(room, group_id, user_id, text, context)
 
     async def close(self):
-        """清理所有房间"""
         for room in self.rooms.values():
             room.reset()
         self.rooms.clear()
