@@ -12,10 +12,10 @@ from PIL import Image
 import aiohttp
 
 # ============ 修正导入（关键）============
-from astrbot.api import Context, MessageEvent, PluginMetadata
+from astrbot.api import event, types
 from astrbot.api.event import on_message
-from astrbot.api.types import MessageChain, Plain, Image as MBImage
-from astrbot.core.plugin import AstrBotPlugin   # ← 从 core.plugin 导入
+from astrbot.api.types import Plain, Image as MBImage
+from astrbot.core import AstrBotPlugin, Context, MessageEvent, PluginMetadata
 # ========================================
 
 logger = logging.getLogger(__name__)
