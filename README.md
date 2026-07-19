@@ -1,14 +1,18 @@
-# astrbot-plugin-helloworld
+# Kards卡牌剪影猜猜猜 - AstrBot 插件
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+机器人发送一张去掉了费用、国籍、特效、词条等文字的卡牌中央形象图片，群友根据图片猜出卡牌名称。
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+## 功能特点
 
-# Supports
+- 📷 **自动裁剪**：根据配置比例裁剪掉卡牌UI文字，只保留中央插画
+- 🎲 **随机出题**：从您提供的卡牌图片库中随机抽取
+- ⏱️ **计时猜牌**：每轮限时猜牌，超时公布答案
+- 📊 **积分与排行榜**：猜对得分，并显示群内排名
+- 🔧 **可配置**：可调整裁剪比例、每日轮数、超时时间等
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+## 安装步骤
+
+1. 将本文件夹放入 AstrBot 的 `data/plugins/` 目录
+2. 安装依赖：
+   ```bash
+   pip install Pillow aiohttp
