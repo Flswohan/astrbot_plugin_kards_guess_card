@@ -267,11 +267,14 @@ class KardsGuessCardPlugin(Star):
             msg += f"{medal} <@{uid}>: {score}分\n"
         await context.send_message(msg)
 
-    # ==================== 命令处理（全部使用 @filter.command） ====================
+    # ==================== 命令处理（只接收 context） ====================
 
     @filter.command("猜卡")
-    async def cmd_start(self, event: AstrMessageEvent, context: Context):
-        """开始一轮猜牌"""
+    async def cmd_start(self, context: Context):
+        event = context.event if hasattr(context, 'event') else None
+        if not event or not hasattr(event, 'get_group_id'):
+            await context.send_message("无法获取群信息")
+            return
         group_id = event.get_group_id()
         if not group_id:
             return
@@ -279,10 +282,12 @@ class KardsGuessCardPlugin(Star):
         await self._start_round(room, group_id, context)
 
     @filter.command("结束猜卡")
-    async def cmd_end(self, event: AstrMessageEvent, context: Context):
-        group_id = event.get_group_id()
-        if not group_id:
+    async def cmd_end(self, context: Context):
+        event = context.event if hasattr(context, 'event') else None
+        if not event or not hasattr(event, 'get_group_id'):
+            await context.send_message("无法获取群信息")
             return
+        group_id = event.get_group_id()
         room = self._get_room(group_id)
         if not room.is_playing:
             await context.send_message("⚠️ 当前没有进行中的游戏")
@@ -300,25 +305,29 @@ class KardsGuessCardPlugin(Star):
         room.current_image_path = None
 
     @filter.command("排行榜")
-    async def cmd_rank(self, event: AstrMessageEvent, context: Context):
-        group_id = event.get_group_id()
-        if not group_id:
+    async def cmd_rank(self, context: Context):
+        event = context.event if hasattr(context, 'event') else None
+        if not event or not hasattr(event, 'get_group_id'):
+            await context.send_message("无法获取群信息")
             return
+        group_id = event.get_group_id()
         room = self._get_room(group_id)
         await self._show_leaderboard(room, context)
 
     @filter.command("我的分数")
-    async def cmd_score(self, event: AstrMessageEvent, context: Context):
-        group_id = event.get_group_id()
-        if not group_id:
+    async def cmd_score(self, context: Context):
+        event = context.event if hasattr(context, 'event') else None
+        if not event or not hasattr(event, 'get_group_id') or not hasattr(event, 'get_user_id'):
+            await context.send_message("无法获取用户信息")
             return
+        group_id = event.get_group_id()
         user_id = event.get_user_id()
         room = self._get_room(group_id)
         score = room.scores.get(user_id, 0)
         await context.send_message(f"📊 你的当前得分: {score}分")
 
     @filter.command("卡牌列表")
-    async def cmd_list(self, event: AstrMessageEvent, context: Context):
+    async def cmd_list(self, context: Context):
         if self.card_pool:
             preview = "、".join(self.card_pool[:20])
             if len(self.card_pool) > 20:
@@ -327,26 +336,23 @@ class KardsGuessCardPlugin(Star):
         else:
             await context.send_message("❌ 没有加载到卡牌列表")
 
-    # 猜牌命令：猜 <卡牌名>
     @filter.command("猜")
-    async def cmd_guess(self, event: AstrMessageEvent, context: Context):
-        """猜牌命令，用法：猜 卡牌名"""
-        group_id = event.get_group_id()
-        if not group_id:
+    async def cmd_guess(self, context: Context):
+        event = context.event if hasattr(context, 'event') else None
+        if not event or not hasattr(event, 'get_group_id') or not hasattr(event, 'get_user_id'):
+            await context.send_message("无法获取用户信息")
             return
+        group_id = event.get_group_id()
         user_id = event.get_user_id()
         room = self._get_room(group_id)
-        # 获取命令参数（卡牌名）
-        args = event.get_args()  # 这个方法可能在部分版本中不存在，使用 fallback
+        # 获取命令参数
+        args = None
         if hasattr(event, 'get_args'):
             args = event.get_args()
         else:
-            # 从消息内容中提取（如果 get_args 不可用）
-            msg = event.get_message_str()
+            msg = event.get_message_str() if hasattr(event, 'get_message_str') else ""
             if msg.startswith("猜 "):
                 args = msg[2:].strip()
-            else:
-                args = ""
         if not args:
             await context.send_message("❌ 请输入要猜的卡牌名，例如：`猜 虎式坦克`")
             return
