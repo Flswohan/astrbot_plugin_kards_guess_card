@@ -1,0 +1,42 @@
+{
+  "card_image_dir": {
+    "type": "string",
+    "default": "./cards_images/",
+    "description": "存放卡牌原图的文件夹路径（相对于插件根目录）"
+  },
+  "crop_top_ratio": {
+    "type": "number",
+    "default": 0.22,
+    "description": "裁剪时上边距比例（去掉费用、国籍等）"
+  },
+  "crop_bottom_ratio": {
+    "type": "number",
+    "default": 0.30,
+    "description": "裁剪时下边距比例（去掉特效、词条等）"
+  },
+  "crop_left_ratio": {
+    "type": "number",
+    "default": 0.08,
+    "description": "裁剪时左边距比例（去掉边框）"
+  },
+  "crop_right_ratio": {
+    "type": "number",
+    "default": 0.08,
+    "description": "裁剪时右边距比例（去掉边框）"
+  },
+  "guess_timeout": {
+    "type": "integer",
+    "default": 60,
+    "description": "每轮猜牌超时时间（秒）"
+  },
+  "rounds_per_day": {
+    "type": "integer",
+    "default": 20,
+    "description": "每天最多游戏轮数"
+  },
+  "points_correct": {
+    "type": "integer",
+    "default": 10,
+    "description": "猜对得分"
+  }
+}
