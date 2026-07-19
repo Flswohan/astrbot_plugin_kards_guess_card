@@ -9,13 +9,10 @@ from datetime import datetime
 from PIL import Image
 import aiohttp
 
-# ============ 从示例插件导入 ============
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-# ==========================================
 
-# 尝试导入消息类型（可选）
 try:
     from astrbot.api.types import Plain, Image as MBImage
 except ImportError:
@@ -23,7 +20,6 @@ except ImportError:
 
 
 class GameRoom:
-    """单个群聊的游戏房间"""
     def __init__(self, group_id: str):
         self.group_id = group_id
         self.is_playing = False
@@ -57,15 +53,11 @@ class GameRoom:
 
 @register(name="kards_guess_card", author="YourName", desc="Kards卡牌剪影猜猜猜", version="1.0.0")
 class KardsGuessCardPlugin(Star):
-    """Kards 卡牌剪影猜猜猜插件（Star架构）"""
-
     async def initialize(self):
-        """初始化"""
         self.rooms: Dict[str, GameRoom] = {}
         self.card_pool: List[str] = []
         self.card_image_map: Dict[str, str] = {}
 
-        # 加载卡牌列表
         list_path = os.path.join(os.path.dirname(__file__), "cards_data", "kards_list.json")
         try:
             with open(list_path, "r", encoding="utf-8") as f:
@@ -75,14 +67,13 @@ class KardsGuessCardPlugin(Star):
             logger.error(f"加载卡牌列表失败: {e}")
             self.card_pool = []
 
-        # 加载图片文件
-        image_dir = "./cards_images/"  # 默认相对路径
+        image_dir = "./cards_images/"
         if hasattr(self, 'config') and self.config:
             image_dir = self.config.get("card_image_dir", "./cards_images/")
         if not os.path.isabs(image_dir):
             image_dir = os.path.join(os.path.dirname(__file__), image_dir)
         if not os.path.exists(image_dir):
-            logger.warning(f"卡牌图片目录不存在: {image_dir}，请创建并放入图片")
+            logger.warning(f"卡牌图片目录不存在: {image_dir}")
         else:
             for filename in os.listdir(image_dir):
                 if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
@@ -93,7 +84,6 @@ class KardsGuessCardPlugin(Star):
                         logger.debug(f"图片 {filename} 对应的卡牌不在列表中，忽略")
             logger.info(f"已加载 {len(self.card_image_map)} 张卡牌图片")
 
-        # 配置参数
         self.crop_top = 0.22
         self.crop_bottom = 0.30
         self.crop_left = 0.08
@@ -158,22 +148,18 @@ class KardsGuessCardPlugin(Star):
         if room.is_playing:
             await context.send_message("⏳ 当前已有游戏进行中，请等待结束")
             return
-
         if not self._can_start_round(room):
             await context.send_message(f"⚠️ 今日游戏次数已达上限（{self.rounds_per_day}轮），明天再来吧！")
             return
-
         card_name = self._pick_card()
         if not card_name:
             await context.send_message("❌ 没有可用的卡牌图片，请先添加卡牌图片到 cards_images/ 目录")
             return
-
         img_path = self.card_image_map[card_name]
         cropped_path = self._crop_card_image(img_path)
         if not cropped_path:
             await context.send_message("❌ 图片裁剪失败，请检查图片格式")
             return
-
         room.reset()
         room.is_playing = True
         room.current_card = card_name
@@ -184,41 +170,34 @@ class KardsGuessCardPlugin(Star):
         room.guessed_users = set()
 
         try:
-            # 发送文字提示
             await context.send_message(
                 f"🔍 **第{room.daily_rounds}轮猜卡牌**\n"
-                "🤔 请根据下图猜出卡牌名称（直接发送卡牌名）\n"
+                "🤔 请根据下图猜出卡牌名称\n"
                 f"⏱️ 限时 {self.guess_timeout} 秒\n"
-                f"💡 提示：卡牌名称字数 = {len(card_name)}"
+                f"💡 提示：卡牌名称字数 = {len(card_name)}\n"
+                "📝 使用命令：`猜 卡牌名` 进行作答"
             )
-            # 发送图片
             if MBImage is not None:
                 image_msg = MBImage.from_file_path(cropped_path)
                 await context.send_message(image_msg)
             else:
-                # 尝试使用 context.send_file（如果支持）
                 try:
                     with open(cropped_path, 'rb') as f:
                         await context.send_file(f, filename=f"{card_name}.jpg")
                 except Exception as e:
                     logger.warning(f"发送文件失败: {e}")
-                    await context.send_message(f"[图片已生成，请查看文件: {cropped_path}]")
+                    await context.send_message(f"[图片已生成: {cropped_path}]")
         except Exception as e:
             logger.error(f"发送图片失败: {e}")
             await context.send_message(f"❌ 发送图片失败: {e}")
             room.reset()
             return
-
-        # 启动猜牌超时计时器
         room.timer_task = asyncio.create_task(self._guess_timeout_handler(room, group_id, context))
 
     async def _guess_timeout_handler(self, room: GameRoom, group_id: str, context: Context):
         await asyncio.sleep(self.guess_timeout)
         if room.is_playing:
-            await context.send_message(
-                f"⏰ 时间到！正确答案是: **{room.current_card}**\n"
-                "💪 下次加油！"
-            )
+            await context.send_message(f"⏰ 时间到！正确答案是: **{room.current_card}**\n💪 下次加油！")
             room.is_playing = False
             if room.timer_task:
                 room.timer_task.cancel()
@@ -230,18 +209,14 @@ class KardsGuessCardPlugin(Star):
                     pass
             room.current_image_path = None
 
-    async def _handle_guess(self, room: GameRoom, group_id: str, user_id: str,
-                            guess: str, context: Context):
+    async def _handle_guess(self, room: GameRoom, user_id: str, guess: str, context: Context):
         if not room.is_playing:
             await context.send_message("⚠️ 当前没有进行中的游戏")
             return
-
         if user_id in room.guessed_users:
             await context.send_message("⏳ 你已经猜过了，等别人猜吧！")
             return
-
         room.guessed_users.add(user_id)
-
         if guess.strip().lower() == room.current_card.lower():
             room.add_score(user_id, self.points_correct)
             await context.send_message(
@@ -260,13 +235,10 @@ class KardsGuessCardPlugin(Star):
                 except Exception:
                     pass
             room.current_image_path = None
-            await self._show_leaderboard(room, group_id, context)
+            await self._show_leaderboard(room, context)
         else:
             hint = self._get_hint(room.current_card, len(room.guessed_users))
-            await context.send_message(
-                f"❌ 不对哦，再想想！\n"
-                f"💡 {hint}"
-            )
+            await context.send_message(f"❌ 不对哦，再想想！\n💡 {hint}")
 
     def _get_hint(self, card: str, attempt: int) -> str:
         if attempt <= 2:
@@ -283,7 +255,7 @@ class KardsGuessCardPlugin(Star):
                 chars[i] = "？"
             return f"提示: {''.join(chars)}"
 
-    async def _show_leaderboard(self, room: GameRoom, group_id: str, context: Context):
+    async def _show_leaderboard(self, room: GameRoom, context: Context):
         if not room.scores:
             await context.send_message("📊 暂无积分记录")
             return
@@ -295,10 +267,10 @@ class KardsGuessCardPlugin(Star):
             msg += f"{medal} <@{uid}>: {score}分\n"
         await context.send_message(msg)
 
-    # ==================== 消息处理（Star 事件） ====================
+    # ==================== 命令处理（全部使用 @filter.command） ====================
 
     @filter.command("猜卡")
-    async def guess_card(self, event: AstrMessageEvent, context: Context):
+    async def cmd_start(self, event: AstrMessageEvent, context: Context):
         """开始一轮猜牌"""
         group_id = event.get_group_id()
         if not group_id:
@@ -307,8 +279,7 @@ class KardsGuessCardPlugin(Star):
         await self._start_round(room, group_id, context)
 
     @filter.command("结束猜卡")
-    async def end_guess(self, event: AstrMessageEvent, context: Context):
-        """强制结束当前游戏"""
+    async def cmd_end(self, event: AstrMessageEvent, context: Context):
         group_id = event.get_group_id()
         if not group_id:
             return
@@ -329,17 +300,15 @@ class KardsGuessCardPlugin(Star):
         room.current_image_path = None
 
     @filter.command("排行榜")
-    async def leaderboard(self, event: AstrMessageEvent, context: Context):
-        """显示排行榜"""
+    async def cmd_rank(self, event: AstrMessageEvent, context: Context):
         group_id = event.get_group_id()
         if not group_id:
             return
         room = self._get_room(group_id)
-        await self._show_leaderboard(room, group_id, context)
+        await self._show_leaderboard(room, context)
 
     @filter.command("我的分数")
-    async def my_score(self, event: AstrMessageEvent, context: Context):
-        """查询自己的分数"""
+    async def cmd_score(self, event: AstrMessageEvent, context: Context):
         group_id = event.get_group_id()
         if not group_id:
             return
@@ -349,8 +318,7 @@ class KardsGuessCardPlugin(Star):
         await context.send_message(f"📊 你的当前得分: {score}分")
 
     @filter.command("卡牌列表")
-    async def card_list(self, event: AstrMessageEvent, context: Context):
-        """查看卡牌列表"""
+    async def cmd_list(self, event: AstrMessageEvent, context: Context):
         if self.card_pool:
             preview = "、".join(self.card_pool[:20])
             if len(self.card_pool) > 20:
@@ -359,29 +327,32 @@ class KardsGuessCardPlugin(Star):
         else:
             await context.send_message("❌ 没有加载到卡牌列表")
 
-    # 处理普通文本消息（猜牌） - 修正装饰器名称
-    @filter.message()
-    async def on_guess_text(self, event: AstrMessageEvent, context: Context):
-        """处理非命令文本（猜牌）"""
+    # 猜牌命令：猜 <卡牌名>
+    @filter.command("猜")
+    async def cmd_guess(self, event: AstrMessageEvent, context: Context):
+        """猜牌命令，用法：猜 卡牌名"""
         group_id = event.get_group_id()
         if not group_id:
             return
-        room = self._get_room(group_id)
-        if not room.is_playing:
-            return
-        text = event.get_message_str().strip()
-        if not text:
-            return
-        # 忽略以 / 开头的命令（但通常 message 不会匹配以 / 开头的命令，因为 command 会优先）
-        if text.startswith("/"):
-            return
-        if len(text) > 30:
-            return
         user_id = event.get_user_id()
-        await self._handle_guess(room, group_id, user_id, text, context)
+        room = self._get_room(group_id)
+        # 获取命令参数（卡牌名）
+        args = event.get_args()  # 这个方法可能在部分版本中不存在，使用 fallback
+        if hasattr(event, 'get_args'):
+            args = event.get_args()
+        else:
+            # 从消息内容中提取（如果 get_args 不可用）
+            msg = event.get_message_str()
+            if msg.startswith("猜 "):
+                args = msg[2:].strip()
+            else:
+                args = ""
+        if not args:
+            await context.send_message("❌ 请输入要猜的卡牌名，例如：`猜 虎式坦克`")
+            return
+        await self._handle_guess(room, user_id, args, context)
 
     async def close(self):
-        """清理资源"""
         for room in self.rooms.values():
             room.reset()
         self.rooms.clear()
