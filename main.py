@@ -10,11 +10,14 @@ from io import BytesIO
 
 from PIL import Image
 import aiohttp
-from astrbot.api import AstrBotPlugin, Context, MessageEvent, PluginMetadata
+# 核心导入（根据实际调整）
+from astrbot.api import Context, MessageEvent, PluginMetadata
 from astrbot.api.event import on_message
 from astrbot.api.types import MessageChain, Plain, Image as MBImage
+from astrbot.core.plugin import AstrBotPlugin   # ← 关键修改
 
 logger = logging.getLogger(__name__)
+# ... 其余代码保持不变
 
 # ==================== 游戏状态管理 ====================
 
